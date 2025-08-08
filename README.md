@@ -13,7 +13,7 @@ A full-stack application that enables users to connect their Slack workspace, se
 ### 1. Clone and Setup
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Er-Priyanshi-Gupta/Slack_Connect
 cd slack-connect
 ```
 
