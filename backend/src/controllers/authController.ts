@@ -1,99 +1,83 @@
 import { Request, Response } from 'express';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import TokenModel from '../models/Token.js';
-
+import { TokenModel } from '../models/Token.js'; 
 dotenv.config();
 
 export class AuthController {
-  // Step 1: Redirect to Slack OAuth page
   static initiateSlackAuth(req: Request, res: Response) {
-    const params = new URLSearchParams({
-      client_id: process.env.SLACK_CLIENT_ID!,
-      scope: 'channels:read,chat:write,users:read', // adjust as needed
-      user_scope: 'users:read', // adjust as needed
-      redirect_uri: process.env.SLACK_REDIRECT_URI!,
-    });
+    const clientId = process.env.SLACK_CLIENT_ID;
+    const redirectUri = process.env.SLACK_REDIRECT_URI;
 
-    res.redirect(`https://slack.com/oauth/v2/authorize?${params.toString()}`);
+    if (!clientId || !redirectUri) {
+      return res.status(500).send('Slack configuration is missing.');
+    }
+
+    const authUrl = `https://slack.com/oauth/v2/authorize?client_id=${clientId}&scope=commands,chat:write,channels:read,groups:read,im:read,mpim:read&redirect_uri=${redirectUri}`;
+    res.redirect(authUrl);
   }
 
-  // Step 2: Handle callback from Slack
   static async handleSlackCallback(req: Request, res: Response) {
-    try {
-      const code = req.query.code as string;
-      if (!code) {
-        return res.status(400).send('Missing OAuth code from Slack');
-      }
+    const code = req.query.code as string | undefined;
+    const clientId = process.env.SLACK_CLIENT_ID;
+    const clientSecret = process.env.SLACK_CLIENT_SECRET;
+    const redirectUri = process.env.SLACK_REDIRECT_URI;
 
-      // Exchange code for tokens
-      const tokenResponse = await axios.post(
+    if (!code || !clientId || !clientSecret || !redirectUri) {
+      return res.status(400).send('Missing required parameters.');
+    }
+
+    try {
+      const response = await axios.post(
         'https://slack.com/api/oauth.v2.access',
-        new URLSearchParams({
-          code,
-          client_id: process.env.SLACK_CLIENT_ID!,
-          client_secret: process.env.SLACK_CLIENT_SECRET!,
-          redirect_uri: process.env.SLACK_REDIRECT_URI!,
-        }),
-        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        null,
+        {
+          params: {
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: redirectUri,
+          },
+        }
       );
 
-      const tokenData = tokenResponse.data;
+      const data = response.data;
 
-      if (!tokenData.ok) {
-        console.error('Slack OAuth error:', tokenData.error);
-        return res.status(400).send(`Slack OAuth failed: ${tokenData.error}`);
+      if (!data.ok) {
+        return res.status(400).json({ error: data.error });
       }
 
-      // Extract tokens safely
-      const botAccessToken: string | undefined = tokenData.access_token || undefined;
-      const userAccessToken: string | undefined =
-        tokenData.authed_user?.access_token || undefined;
-      const refreshToken: string | undefined = tokenData.refresh_token || undefined;
-      const expiresAt: number | undefined = tokenData.expires_in
-        ? Math.floor(Date.now() / 1000) + tokenData.expires_in
-        : undefined;
+      const accessToken: string | undefined = data.authed_user?.access_token ?? undefined;
+      const refreshToken: string | undefined = data.authed_user?.refresh_token ?? undefined;
 
-      // Ensure we have at least a bot token to store
-      if (!botAccessToken) {
-        return res.status(500).send('No bot access token returned by Slack');
+      if (!accessToken) {
+        return res.status(500).send('Slack did not return an access token.');
       }
 
-      // Store in DB
-      const existing = await TokenModel.findByTeamId(tokenData.team.id);
-      if (existing) {
-        await TokenModel.update(tokenData.authed_user?.id || 'unknown', {
-          bot_access_token: botAccessToken,
-          user_access_token: userAccessToken,
-          refresh_token: refreshToken,
-          expires_at: expiresAt,
-        });
-      } else {
-        await TokenModel.create({
-          user_id: tokenData.authed_user?.id || 'unknown',
-          team_id: tokenData.team.id,
-          bot_access_token: botAccessToken,
-          user_access_token: userAccessToken,
-          refresh_token: refreshToken,
-          expires_at: expiresAt,
-        });
-      }
+      TokenModel.create({
+        user_id: data.authed_user?.id ?? '',
+        team_id: data.team?.id ?? '',
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: data.authed_user?.expires_in
+          ? Date.now() + data.authed_user.expires_in * 1000
+          : undefined,
+      });
 
-      res.send('Slack OAuth successful! Tokens stored.');
+      res.send('Slack authentication successful!');
     } catch (error) {
-      console.error('Error during Slack callback:', error);
-      res.status(500).send('OAuth callback error');
+      console.error('Slack OAuth error:', error);
+      res.status(500).send('Slack OAuth failed.');
     }
   }
 
-  // Step 3: Logout
-  static async logout(req: Request, res: Response) {
-    try {
-      // Implement token deletion if needed
-      res.send('Logged out successfully');
-    } catch (error) {
-      console.error('Logout error:', error);
-      res.status(500).send('Logout failed');
+  static logout(req: Request, res: Response) {
+    const userId = req.body.userId as string | undefined;
+    if (!userId) {
+      return res.status(400).send('User ID is required.');
     }
+
+    TokenModel.delete(userId);
+    res.send('Logged out successfully.');
   }
 }
