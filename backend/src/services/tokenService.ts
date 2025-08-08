@@ -14,35 +14,37 @@ export class TokenService {
   }
 
   static async getValidAccessToken(userId: string): Promise<string> {
-    const tokenRecord = TokenModel.findByUserId(userId);
-    
+    const tokenRecord = await TokenModel.findByUserId(userId); // ✅ await
+
     if (!tokenRecord) {
       throw new Error('No token found for user');
     }
 
-    // Check if token is still valid (if expires_at is set)
+    // Check if token is expired
     if (tokenRecord.expires_at && Date.now() >= tokenRecord.expires_at * 1000) {
-      // Token expired, try to refresh
+      // Try to refresh if refresh_token exists
       if (tokenRecord.refresh_token) {
         try {
           const refreshedData = await SlackService.refreshToken(tokenRecord.refresh_token);
-          
+
           // Update token in database
-          TokenModel.update(userId, {
-            access_token: refreshedData.authed_user.access_token,
-            refresh_token: refreshedData.authed_user.refresh_token,
-            expires_at: refreshedData.expires_in ? Math.floor(Date.now() / 1000) + refreshedData.expires_in : undefined,
+          await TokenModel.updateByTeamId(tokenRecord.team_id, {
+            access_token: refreshedData.authed_user?.access_token || tokenRecord.access_token,
+            refresh_token: refreshedData.authed_user?.refresh_token || tokenRecord.refresh_token,
+            expires_at: refreshedData.expires_in
+              ? Math.floor(Date.now() / 1000) + refreshedData.expires_in
+              : tokenRecord.expires_at
           });
 
-          return refreshedData.authed_user.access_token;
+          return refreshedData.authed_user?.access_token || tokenRecord.access_token;
         } catch (error) {
-          // Refresh failed, user needs to re-authenticate
-          TokenModel.delete(userId);
+          // Refresh failed → delete token and ask for re-authentication
+          await TokenModel.deleteByTeamId(tokenRecord.team_id);
           throw new Error('Token refresh failed, re-authentication required');
         }
       } else {
-        // No refresh token available
-        TokenModel.delete(userId);
+        // No refresh token
+        await TokenModel.deleteByTeamId(tokenRecord.team_id);
         throw new Error('Token expired and no refresh token available');
       }
     }
