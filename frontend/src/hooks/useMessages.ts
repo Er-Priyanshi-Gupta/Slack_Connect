@@ -39,7 +39,7 @@ export const useMessages = () => {
   ) => {
     try {
       await messagesAPI.scheduleMessage(channelId, channelName, message, scheduledTime);
-      await fetchScheduledMessages(); // Refresh the list
+      await fetchScheduledMessages(); 
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to schedule message');
@@ -50,7 +50,7 @@ export const useMessages = () => {
   const cancelScheduledMessage = async (id: number) => {
     try {
       await messagesAPI.cancelScheduledMessage(id);
-      await fetchScheduledMessages(); // Refresh the list
+      await fetchScheduledMessages(); 
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel message');

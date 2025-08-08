@@ -1,5 +1,4 @@
-import db from '../utils/database.js'; // This is your SQLite DB instance
-
+import db from '../utils/database.js'; 
 export interface Token {
   id?: number;
   user_id: string;

@@ -14,7 +14,6 @@ export const slackOAuthCallback = async (req: Request, res: Response) => {
     const clientSecret = process.env.SLACK_CLIENT_SECRET;
     const redirectUri = process.env.SLACK_REDIRECT_URI;
 
-    // Exchange the authorization code for an access token
     const tokenResponse = await axios.post(
       'https://slack.com/api/oauth.v2.access',
       null,
@@ -38,22 +37,20 @@ export const slackOAuthCallback = async (req: Request, res: Response) => {
       });
     }
 
-    // Prepare token data for DB
     const tokenData = {
       user_id: data.authed_user?.id,
       team_id: data.team?.id,
       team_name: data.team?.name,
       enterprise_id: data.enterprise?.id,
       enterprise_name: data.enterprise?.name,
-      access_token: data.access_token, // Bot token (xoxb-...)
+      access_token: data.access_token, 
       scope: data.scope,
       bot_user_id: data.bot_user_id,
       app_id: data.app_id,
-      user_access_token: data.authed_user?.access_token, // User token (xoxp-...)
+      user_access_token: data.authed_user?.access_token, 
       user_scope: data.authed_user?.scope
     };
 
-    // If team exists, update — else insert
     const existing = await TokenModel.findByTeamId(tokenData.team_id);
     if (existing) {
       await TokenModel.updateByTeamId(tokenData.team_id, tokenData);

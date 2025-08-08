@@ -3,7 +3,6 @@ import { slackOAuthCallback } from '../controllers/authController.js';
 
 const router = Router();
 
-// Slack OAuth install link
 router.get('/slack/install', (req, res) => {
   const clientId = process.env.SLACK_CLIENT_ID;
   const redirectUri = process.env.SLACK_REDIRECT_URI;
@@ -14,7 +13,6 @@ router.get('/slack/install', (req, res) => {
   res.redirect(authUrl);
 });
 
-// Slack OAuth callback
 router.get('/slack/oauth_redirect', slackOAuthCallback);
 
 export default router;

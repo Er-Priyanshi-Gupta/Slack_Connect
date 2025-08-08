@@ -14,20 +14,17 @@ export class TokenService {
   }
 
   static async getValidAccessToken(userId: string): Promise<string> {
-    const tokenRecord = await TokenModel.findByUserId(userId); // ✅ await
+    const tokenRecord = await TokenModel.findByUserId(userId); 
 
     if (!tokenRecord) {
       throw new Error('No token found for user');
     }
-
-    // Check if token is expired
     if (tokenRecord.expires_at && Date.now() >= tokenRecord.expires_at * 1000) {
-      // Try to refresh if refresh_token exists
+      
       if (tokenRecord.refresh_token) {
         try {
           const refreshedData = await SlackService.refreshToken(tokenRecord.refresh_token);
 
-          // Update token in database
           await TokenModel.updateByTeamId(tokenRecord.team_id, {
             access_token: refreshedData.authed_user?.access_token || tokenRecord.access_token,
             refresh_token: refreshedData.authed_user?.refresh_token || tokenRecord.refresh_token,
@@ -38,12 +35,10 @@ export class TokenService {
 
           return refreshedData.authed_user?.access_token || tokenRecord.access_token;
         } catch (error) {
-          // Refresh failed → delete token and ask for re-authentication
           await TokenModel.deleteByTeamId(tokenRecord.team_id);
           throw new Error('Token refresh failed, re-authentication required');
         }
       } else {
-        // No refresh token
         await TokenModel.deleteByTeamId(tokenRecord.team_id);
         throw new Error('Token expired and no refresh token available');
       }

@@ -5,7 +5,6 @@ import { TokenService } from './tokenService.js';
 
 export class SchedulerService {
   static init(): void {
-    // Run every minute to check for scheduled messages
     cron.schedule('* * * * *', async () => {
       try {
         const pendingMessages = ScheduledMessageModel.findPendingMessages();

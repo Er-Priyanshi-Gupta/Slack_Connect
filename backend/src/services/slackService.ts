@@ -71,7 +71,6 @@ export class SlackService {
   static async getChannels(accessToken: string): Promise<SlackChannel[]> {
     const channels: SlackChannel[] = [];
     
-    // Get public channels
     const channelsResponse = await axios.get(`${this.BASE_URL}/conversations.list`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       params: { types: 'public_channel,private_channel' },
