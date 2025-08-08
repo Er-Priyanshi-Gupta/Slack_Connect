@@ -72,7 +72,7 @@ export class AuthController {
           accessToken = data.authed_user?.access_token ?? undefined;
           refreshToken = data.authed_user?.refresh_token ?? undefined;
           userId = data.authed_user?.id ?? '';
-          appId = data.app_id ?? ''; // store Slack app ID instead of team_id
+          appId = data.app_id ?? '';
         }
       }
 
@@ -81,7 +81,20 @@ export class AuthController {
         console.warn('Using fallback token from .env');
         accessToken = process.env.SLACK_ACCESS_TOKEN;
         userId = process.env.SLACK_USER_ID ?? '';
-        appId = process.env.SLACK_APP_ID ?? '';
+
+        // Fetch app_id dynamically using auth.test
+        if (accessToken) {
+          const authTestRes = await axios.post(
+            'https://slack.com/api/auth.test',
+            null,
+            {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            }
+          );
+          if (authTestRes.data.ok) {
+            appId = authTestRes.data.app_id ?? '';
+          }
+        }
       }
 
       if (!accessToken) {
@@ -98,7 +111,7 @@ export class AuthController {
 
       res.send('Slack authentication successful!');
     } catch (error) {
-      console.error('Slack OAuth error:', error);
+      console.error('Slack OAuth error:', error.response?.data || error.message);
       res.status(500).send('Slack OAuth failed.');
     }
   }
