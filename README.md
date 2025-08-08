@@ -69,7 +69,7 @@ npm install
 Configure environment (create `.env`):
 
 ```env
-VITE_API_URL=http://localhost:3001
+VITE_API_URL=https://slack-connect-cnwh.onrender.com
 ```
 
 Start the frontend:
@@ -77,11 +77,6 @@ Start the frontend:
 ```bash
 npm run dev
 ```
-
-### 5. Access the Application
-
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
 
 ## Architecture Overview
 
