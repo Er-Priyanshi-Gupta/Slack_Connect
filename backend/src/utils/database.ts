@@ -1,18 +1,26 @@
-import Database, { Database as DatabaseType } from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
+import Database, { Database as DatabaseType } from "better-sqlite3";
+import path from "path";
+import fs from "fs";
 
-const dbPath = process.env.DATABASE_PATH || './data/database.sqlite';
-const dbDir = path.dirname(dbPath);
+// Choose writable location for the database
+// On Render, /tmp is writable (but not persistent)
+const dataDir =
+  process.env.NODE_ENV === "production"
+    ? "/tmp"
+    : path.join(__dirname, "../../data");
 
-// Ensure database directory exists
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+// Ensure data directory exists
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Full path to SQLite file
+const dbPath = path.join(dataDir, "mydb.sqlite");
+
+// Create the database connection
 const db: DatabaseType = new Database(dbPath);
 
-// Initialize tables
+// Initialize required tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
