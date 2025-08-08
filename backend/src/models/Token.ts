@@ -2,53 +2,32 @@ import db from '../utils/database.js';
 
 export interface Token {
   id?: number;
-  user_id: string;
-  team_id: string;
-  access_token: string;
+  user_id: string;            // Slack authed_user.id
+  team_id: string;            // Slack team.id
+  team_name?: string;         // Slack team.name
+  enterprise_id?: string;     // Slack enterprise.id (optional)
+  enterprise_name?: string;   // Slack enterprise.name (optional)
+  access_token: string;       // Bot token (xoxb-...)
   refresh_token?: string;
-  expires_at?: number;
-  created_at?: string;
-  updated_at?: string;
+  expires_in?: number;
+  scope: string;              // Bot scope
+  bot_user_id: string;        // bot_user_id from Slack
+  app_id: string;             // Slack app_id
+  user_access_token?: string; // User token (xoxp-...)
+  user_scope?: string;        // User scope
 }
 
-export class TokenModel {
-  static create(token: Omit<Token, 'id' | 'created_at' | 'updated_at'>): Token {
-    const stmt = db.prepare(`
-      INSERT INTO tokens (user_id, team_id, access_token, refresh_token, expires_at)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    
-    const result = stmt.run(
-      token.user_id,
-      token.team_id,
-      token.access_token,
-      token.refresh_token,
-      token.expires_at
-    );
-    
-    return { ...token, id: result.lastInsertRowid as number };
-  }
+export const TokenModel = {
+  async create(token: Token) {
+    const [id] = await db('tokens').insert(token).returning('id');
+    return id;
+  },
 
-  static findByUserId(userId: string): Token | null {
-    const stmt = db.prepare('SELECT * FROM tokens WHERE user_id = ?');
-    return stmt.get(userId) as Token | null;
-  }
+  async findByTeamId(team_id: string) {
+    return db('tokens').where({ team_id }).first();
+  },
 
-  static update(userId: string, updates: Partial<Token>): void {
-    const fields = Object.keys(updates).filter(key => key !== 'id').map(key => `${key} = ?`);
-    const values = Object.values(updates).filter((_, index) => Object.keys(updates)[index] !== 'id');
-    
-    const stmt = db.prepare(`
-      UPDATE tokens 
-      SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = ?
-    `);
-    
-    stmt.run(...values, userId);
+  async updateByTeamId(team_id: string, token: Partial<Token>) {
+    return db('tokens').where({ team_id }).update(token);
   }
-
-  static delete(userId: string): void {
-    const stmt = db.prepare('DELETE FROM tokens WHERE user_id = ?');
-    stmt.run(userId);
-  }
-}
+};
