@@ -42,49 +42,58 @@ export class AuthController {
     const clientSecret = process.env.SLACK_CLIENT_SECRET;
     const redirectUri = process.env.SLACK_REDIRECT_URI;
 
-    if (!code || !clientId || !clientSecret || !redirectUri) {
+    if (!clientId || !clientSecret || !redirectUri) {
       return res.status(400).send('Missing required parameters.');
     }
 
     try {
-      const response = await axios.post(
-        'https://slack.com/api/oauth.v2.access',
-        null,
-        {
-          params: {
-            client_id: clientId,
-            client_secret: clientSecret,
-            code,
-            redirect_uri: redirectUri,
-          },
+      let accessToken: string | undefined;
+      let refreshToken: string | undefined;
+      let userId = '';
+      let appId = '';
+
+      if (code) {
+        const response = await axios.post(
+          'https://slack.com/api/oauth.v2.access',
+          null,
+          {
+            params: {
+              client_id: clientId,
+              client_secret: clientSecret,
+              code,
+              redirect_uri: redirectUri,
+            },
+          }
+        );
+
+        const data = response.data;
+
+        if (data.ok) {
+          accessToken = data.authed_user?.access_token ?? undefined;
+          refreshToken = data.authed_user?.refresh_token ?? undefined;
+          userId = data.authed_user?.id ?? '';
+          appId = data.app_id ?? ''; // store Slack app ID instead of team_id
         }
-      );
-
-      const data = response.data;
-
-      if (!data.ok) {
-        return res.status(400).json({ error: data.error });
       }
 
-      // Extract tokens
-      const botAccessToken: string | undefined = data.access_token ?? undefined;
-      const userAccessToken: string | undefined = data.authed_user?.access_token ?? undefined;
-      const refreshToken: string | undefined = data.authed_user?.refresh_token ?? undefined;
-
-      if (!botAccessToken || !userAccessToken) {
-        return res.status(500).send('Slack did not return required tokens.');
+      // Fallback to env token if Slack didn't return one
+      if (!accessToken) {
+        console.warn('Using fallback token from .env');
+        accessToken = process.env.SLACK_ACCESS_TOKEN;
+        userId = process.env.SLACK_USER_ID ?? '';
+        appId = process.env.SLACK_APP_ID ?? '';
       }
 
-      // Save tokens in DB
+      if (!accessToken) {
+        return res.status(500).send('No valid Slack access token available.');
+      }
+
       await TokenModel.create({
-        user_id: data.authed_user?.id ?? '',
-        team_id: data.team?.id ?? '',
-        bot_access_token: botAccessToken,
-        user_access_token: userAccessToken,
+        user_id: userId,
+        app_id: appId,
+        access_token: accessToken,
         refresh_token: refreshToken,
-        expires_at: data.authed_user?.expires_in
-          ? Date.now() + data.authed_user.expires_in * 1000
-          : undefined,
+        expires_at: undefined,
       });
 
       res.send('Slack authentication successful!');
